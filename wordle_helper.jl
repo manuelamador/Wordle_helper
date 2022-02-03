@@ -33,7 +33,13 @@ function is_a_match(word, guess, outcome)
         elseif s == 1 # right letter wrong position
             ((word[i] == guess[i]) || !occursin(guess[i], word)) && return false 
         else # wrong letter
-            occursin(guess[i], word) && return false
+            for j in eachindex(outcome)
+                if (word[j] == guess[i])
+                    if !((guess[j] == guess[i]) && outcome[j] == 2) 
+                        return false
+                    end 
+                end 
+            end 
         end 
     end 
     return true
