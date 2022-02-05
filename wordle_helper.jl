@@ -1,5 +1,4 @@
 using Downloads 
-using StaticArrays
 using ThreadsX
 using ProgressMeter 
 
@@ -26,39 +25,25 @@ end
 # The `outcome` is a vector of 5 integers, representing the match of each letter
 # in `guess`. A value of 0 means wrong letter, 1 means right letter wrong position, and 2 means 
 # right letter right position. 
-function is_a_match(word, guess, outcome)
-    for (i, s) in enumerate(outcome)
-        if s == 2 # right position
-            (word[i] != guess[i]) && return false 
-        elseif s == 1 # right letter wrong position
-            ((word[i] == guess[i]) || !occursin(guess[i], word)) && return false 
-        else # wrong letter
-            for j in eachindex(outcome)
-                if (word[j] == guess[i])
-                    if !((guess[j] == guess[i]) && outcome[j] == 2) 
-                        return false
-                    end 
-                end 
-            end 
-        end 
-    end 
-    return true
-end 
 
-
-# If the correct word is `word`, returns the outcome of guessing `letter` in position `pos`. 
-function get_pos_outcome(word, letter, pos)
-    (letter == word[pos]) && (return 2) # right letter right position
-    (occursin(letter, word)) && (return 1) # right letter wrong position
-    return 0 # wrong letter
-end 
+is_a_match(word, guess, outcome) = get_outcome(word, guess) == outcome
 
 
 # If the correct word is `word`, returns the vector `outcome` for each letter in `guess`. 
-get_outcome(word, guess) = @SVector [get_pos_outcome(word, guess[i], i) for i in 1:5]
+# This deals with repeated letters. 
+function get_outcome(word, guess; tmp = [0 for _ in 1:5]) 
+    for i in eachindex(tmp)
+        true_letter = word[i]
+        (true_letter == guess[i]) && (tmp[i] = 2; continue)
+        for j in eachindex(tmp)
+            (tmp[j] == 0) && (true_letter == guess[j]) && (tmp[j] = 1; break)
+        end 
+    end 
+    return tmp
+end
+    
 
-
-count_wrong_matches(words, guess, outcome) = count(
+count_wrong_matches(words, guess, outcome) = count( 
         x -> (is_a_match(x, guess, outcome) && (x != guess)), # wrong matches
         words)
 
