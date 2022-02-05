@@ -26,13 +26,14 @@ end
 # in `guess`. A value of 0 means wrong letter, 1 means right letter wrong position, and 2 means 
 # right letter right position. 
 
-is_a_match(word, guess, outcome) = get_outcome(word, guess) == outcome
+is_a_match(word, guess, outcome; tmp = zeros(Int, 5)) = get_outcome(word, guess; tmp) == outcome
 
 
 # If the correct word is `word`, returns the vector `outcome` for each letter in `guess`. 
 # This deals with repeated letters. 
-function get_outcome(word, guess; tmp = [0 for _ in 1:5]) 
-    for i in eachindex(tmp)
+function get_outcome(word, guess; tmp = zeros(Int, 5)) 
+    tmp .= 0
+    for i in eachindex(word)
         true_letter = word[i]
         (true_letter == guess[i]) && (tmp[i] = 2; continue)
         for j in eachindex(tmp)
@@ -43,8 +44,8 @@ function get_outcome(word, guess; tmp = [0 for _ in 1:5])
 end
     
 
-count_wrong_matches(words, guess, outcome) = count( 
-        x -> (is_a_match(x, guess, outcome) && (x != guess)), # wrong matches
+count_wrong_matches(words, guess, outcome; tmp = zeros(Int, 5)) = count( 
+        x -> (is_a_match(x, guess, outcome; tmp) && (x != guess)), # wrong matches
         words)
 
 
@@ -59,9 +60,11 @@ function find_best_guess(;
     best = ThreadsX.mapreduce(op, 1:length(allowed_guesses), init = ("", typemax(Int))) do i  
         guess = allowed_guesses[i]
         number_matches = 0
+        tmp = zeros(Int, 5)
+        outcome = zeros(Int, 5)
         for (i, word) in enumerate(words) 
-            outcome = get_outcome(word, guess)
-            number_matches += count_wrong_matches(words, guess, outcome)
+            get_outcome(word, guess; tmp = outcome)
+            number_matches += count_wrong_matches(words, guess, outcome; tmp)
         end 
         verbose && next!(p)
         return (guess, number_matches)
