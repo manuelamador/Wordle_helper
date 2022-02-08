@@ -95,3 +95,67 @@ function solve(true_word, starting_guess; words, allowed_guesses, hard_mode = fa
     end 
     return sol 
 end
+
+
+
+function solve_a_game(; hard_mode = false)
+    all_words = get_word_lists()
+    game_words = get_word_lists().words
+
+    println("""Solves a Worldle game.
+    
+        For outcome, give a list of 5 digits, each representing a letter in that 
+        position:
+        
+        0: represents a wrong letter, 
+        1: represents a right letter in the wrong position, and 
+        2: represents the right letter in the right position.
+
+        If the guess is 
+
+            raise 
+
+        and the outcome is
+         
+            10002
+
+        then 'r' is in the wrong position, 'e' is the right position, and 
+        'a', 'i' and 's' are not in the word.
+
+    Control-C exits.
+    """)
+
+    i = 1 
+    while true
+        local guess, outcome
+
+        while true
+            print("Enter your guess $i: ")
+            guess = readline()
+            if (length(guess) == 5) 
+                break 
+            else 
+                println("Word is not 5 letters long")
+            end
+        end 
+
+        while true 
+            print("Enter the outcome for guess $i: ")
+            outcome = map(x -> parse(Int, x), collect(readline()))
+            if (length(outcome) == 5) 
+                break 
+            else 
+                println("Outcome is not 5 digits long")
+            end 
+        end 
+
+        next = new_guess_and_update!(game_words, guess, outcome, all_words.words; hard_mode)
+
+        ending = i == 1 ? "" : "es" 
+        length(game_words) <= 1 && (println("\nWord is $(game_words[1]). Required $i guess$ending."); break) 
+
+        println("Next best guess: $(next[1])")
+        println()
+        i += 1
+    end 
+end 
