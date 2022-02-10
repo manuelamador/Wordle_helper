@@ -122,6 +122,8 @@ function solve_a_game(; hard_mode = false)
         then 'r' is in the wrong position, 'e' is the right position, and 
         'a', 'i' and 's' are not in the word.
 
+        Use lowercase for the guesses. 
+
     Control-C exits.
     """)
 
@@ -151,9 +153,15 @@ function solve_a_game(; hard_mode = false)
 
         next = new_guess_and_update!(game_words, guess, outcome, all_words.words; hard_mode)
 
-        ending = i == 1 ? "" : "es" 
-        length(game_words) <= 1 && (println("\nWord is $(game_words[1]). Required $i guess$ending."); break) 
-
+        ending = i == 1 ? "" : "es"
+        if  length(game_words) == 1 
+            (guess != game_words[1]) && (i += 1)
+            println("\nWord is $(game_words[1]). Required $i guess$ending.")
+            break 
+        elseif length(game_words) == 0 
+            println("Inconsistent values. Something went wrong.")
+            break
+        end
         println("Next best guess: $(next[1])")
         println()
         i += 1
