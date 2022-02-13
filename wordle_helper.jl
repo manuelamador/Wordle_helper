@@ -53,21 +53,28 @@ count_wrong_matches(words, guess, outcome; tmp = zeros(Int, 5)) = count(
 function find_best_guess(;
         allowed_guesses,
         words, 
-        verbose = true
+        verbose = true, 
+        use_entropy = false
 )
     verbose && (p = Progress(length(allowed_guesses)))
     op = (x, y) -> y[2] < x[2] ? y : x
     best = ThreadsX.mapreduce(op, 1:length(allowed_guesses), init = ("", typemax(Int))) do i  
         guess = allowed_guesses[i]
-        number_matches = 0
+        score = 0
         tmp = zeros(Int, 5)
         outcome = zeros(Int, 5)
         for (i, word) in enumerate(words) 
             get_outcome(word, guess; tmp = outcome)
-            number_matches += count_wrong_matches(words, guess, outcome; tmp)
+            n = count_wrong_matches(words, guess, outcome; tmp) 
+            if use_entropy 
+                pr = (n + 1) / length(words)
+                score += log2(pr)
+            else 
+                score += n 
+            end            
         end 
         verbose && next!(p)
-        return (guess, number_matches)
+        return (guess, score / length(words))
     end 
     return best
 end
@@ -83,13 +90,13 @@ end
 # Given the correct word `true_word` and an initial `guess`, solve the game 
 # given that `words` contains the list of potential words and `guess_pool`
 # contains the list allowed words to be used as guesses. 
-function solve(true_word, starting_guess; words, allowed_guesses, hard_mode = false) 
+function solve(true_word, starting_guess; words, allowed_guesses, hard_mode = false, use_entropy = false) 
     guess = starting_guess
     sol = [guess]
     remaining_words = filter(x -> is_a_match(x, guess, get_outcome(true_word, guess)), words)
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
         guesses = hard_mode ? remaining_words : allowed_guesses
-        guess = find_best_guess(;allowed_guesses = guesses, words = remaining_words, verbose = false)[1]
+        guess = find_best_guess(;allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)[1]
         push!(sol, guess)
         filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), remaining_words)
     end 
