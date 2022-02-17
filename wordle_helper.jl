@@ -76,10 +76,10 @@ count_wrong_matches(words, guess, outcome; tmp = zeros(Int, 5)) = count(
 
 # Finds the best guess by minimizing the expected number of wrong matched words. 
 function find_best_guess(;
-        allowed_guesses,
-        words, 
-        verbose = true, 
-        use_entropy = false
+    words, 
+    allowed_guesses,
+    verbose = true, 
+    use_entropy = false
 )
     verbose && (p = Progress(length(allowed_guesses)))
     op = (x, y) -> y[2] < x[2] ? y : x
@@ -115,7 +115,13 @@ end
 # Given the correct word `true_word` and an initial `guess`, solve the game 
 # given that `words` contains the list of potential words and `guess_pool`
 # contains the list allowed words to be used as guesses. 
-function solve(true_word, starting_guess; words, allowed_guesses, hard_mode = false, use_entropy = false) 
+function solve(
+    true_word, starting_guess; 
+    words, allowed_guesses, 
+    hard_mode = false, 
+    use_entropy = false
+) 
+    (true_word != allowed_guesses) && (println("$true_word not in the list of guesses!"); return String[])
     guess = starting_guess
     sol = [guess]
     remaining_words = filter(x -> is_a_match(x, guess, get_outcome(true_word, guess)), words)
