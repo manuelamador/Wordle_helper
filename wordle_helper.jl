@@ -1,6 +1,7 @@
 using Downloads 
 using ThreadsX
 using ProgressMeter 
+using DelimitedFiles
 
 
 function get_word_lists(; use_all_allowed_guesses = true)
@@ -16,6 +17,30 @@ function get_word_lists(; use_all_allowed_guesses = true)
     allowed_guesses = use_all_allowed_guesses ? vcat(words, map(String, split(result2))) : words
 
     return (; words, allowed_guesses)
+end 
+
+
+function save_word_lists()
+    lsts = get_word_lists()
+    open("words.txt", "w") do io
+        writedlm(io, lsts[1])
+    end 
+    open("guesses.txt", "w") do io
+        writedlm(io, lsts[2])
+    end 
+    return lsts
+end
+
+
+function load_word_lists()
+    if isfile("words.txt") && isfile("guesses.txt") 
+        # if possible, read from files
+        lsts = readdlm("words.txt", String), readdlm("guesses.txt", String) 
+    else 
+        # otherwise, download and save to files
+        lsts = save_word_lists()
+    end 
+    return (words = lsts[1][:], allowed_guesses = lsts[2][:])
 end 
 
 
@@ -80,10 +105,10 @@ function find_best_guess(;
 end
 
 
-function new_guess_and_update!(remaining_words, guess, outcome, allowed_guesses; hard_mode = false)
+function new_guess_and_update!(remaining_words, guess, outcome, allowed_guesses; hard_mode = false, use_entropy = false)
     filter!(x -> is_a_match(x, guess, outcome), remaining_words)
     guesses = hard_mode ? remaining_words : allowed_guesses
-    return find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false)
+    return find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)
 end 
 
 
@@ -105,20 +130,18 @@ end
 
 
 
-function solve_a_game(; hard_mode = false)
-    all_words = get_word_lists()
-    game_words = get_word_lists().words
+function solve_a_game(; hard_mode = false, use_entropy = false)
+    (; words, allowed_guesses) = load_word_lists()
 
-    println("""Solves a Worldle game.
+    println("""Solves a Worldle game in $(hard_mode ? "HARD" : "NORMAL") mode.   
     
-        For outcome, give a list of 5 digits, each representing a letter in that 
-        position:
+        Outcome is a 5 digit number, where for each digit:
         
         0: represents a wrong letter, 
         1: represents a right letter in the wrong position, and 
         2: represents the right letter in the right position.
 
-        If the guess is 
+        For example, if the guess is 
 
             raise 
 
@@ -129,8 +152,6 @@ function solve_a_game(; hard_mode = false)
         then 'r' is in the wrong position, 'e' is the right position, and 
         'a', 'i' and 's' are not in the word.
 
-        Use lowercase for the guesses. 
-
     Control-C exits.
     """)
 
@@ -140,7 +161,7 @@ function solve_a_game(; hard_mode = false)
 
         while true
             print("Enter your guess $i: ")
-            guess = readline()
+            guess = lowercase(readline())
             if (length(guess) == 5) 
                 break 
             else 
@@ -158,18 +179,21 @@ function solve_a_game(; hard_mode = false)
             end 
         end 
 
-        next = new_guess_and_update!(game_words, guess, outcome, all_words.words; hard_mode)
+        next = new_guess_and_update!(words, guess, outcome, allowed_guesses; hard_mode, use_entropy)
 
         ending = i == 1 ? "" : "es"
-        if  length(game_words) == 1 
-            (guess != game_words[1]) && (i += 1)
-            println("\nWord is $(game_words[1]). Required $i guess$ending.")
+        if  length(words) == 1 
+            (guess != words[1]) && (i += 1)
+            println("\nWord is $(words[1]). Required $i guess$ending.")
             break 
-        elseif length(game_words) == 0 
+        elseif length(words) == 0 
             println("Inconsistent values. Something went wrong.")
             break
         end
-        println("Next best guess: $(next[1])")
+        println("Number of remaining words: $(length(words))")
+        (length(words) <= 10) && (print("Remaining words:"); println(words))
+
+        println("Next best guess: $next")
         println()
         i += 1
     end 
