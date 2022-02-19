@@ -4,7 +4,7 @@ using ProgressMeter
 using DelimitedFiles
 
 
-function get_word_lists(; use_all_allowed_guesses = true)
+function get_word_lists()
     # list of valid wordle words
     url = "https://gist.githubusercontent.com/cfreshman/a03ef2cba789d8cf00c08f767e0fad7b/raw/a9e55d7e0c08100ce62133a1fa0d9c4f0f542f2c/wordle-answers-alphabetical.txt"
     result1 = String(take!(Downloads.download(url,IOBuffer())))
@@ -14,7 +14,7 @@ function get_word_lists(; use_all_allowed_guesses = true)
     result2 = String(take!(Downloads.download(url2,IOBuffer())))
     
     words = map(String, split(result1))
-    allowed_guesses = use_all_allowed_guesses ? vcat(words, map(String, split(result2))) : words
+    allowed_guesses = unique(vcat(words, map(String, split(result2)))) 
 
     return (; words, allowed_guesses)
 end 
@@ -108,7 +108,7 @@ end
 function new_guess_and_update!(remaining_words, guess, outcome, allowed_guesses; hard_mode = false, use_entropy = false)
     filter!(x -> is_a_match(x, guess, outcome), remaining_words)
     hard_mode && filter!(x -> is_a_match(x, guess, outcome), allowed_guesses)
-    return find_best_guess(; allowed_guesses, words, verbose = false, use_entropy)
+    return find_best_guess(; words = remaining_words, allowed_guesses, verbose = false, use_entropy)
 end 
 
 
@@ -121,11 +121,11 @@ function solve(
     hard_mode = false, 
     use_entropy = false
 ) 
-    (true_word != allowed_guesses) && (println("$true_word not in the list of guesses!"); return String[])
+    (true_word in allowed_guesses) || (println("$true_word not in the list of guesses!"); return String[])
     guess = starting_guess
     sol = [guess]
     remaining_words = filter(x -> is_a_match(x, guess, get_outcome(true_word, guess)), words)
-    guesses = hard_mode ? copy(allowed_guesses) : allowed_guesses
+    guesses = hard_mode ? allowed_guesses[:] : allowed_guesses
 
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
         hard_mode &&  filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), guesses)
