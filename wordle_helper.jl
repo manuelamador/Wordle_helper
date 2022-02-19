@@ -107,8 +107,8 @@ end
 
 function new_guess_and_update!(remaining_words, guess, outcome, allowed_guesses; hard_mode = false, use_entropy = false)
     filter!(x -> is_a_match(x, guess, outcome), remaining_words)
-    guesses = hard_mode ? remaining_words : allowed_guesses
-    return find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)
+    hard_mode && filter!(x -> is_a_match(x, guess, outcome), allowed_guesses)
+    return find_best_guess(; allowed_guesses, words, verbose = false, use_entropy)
 end 
 
 
@@ -125,9 +125,11 @@ function solve(
     guess = starting_guess
     sol = [guess]
     remaining_words = filter(x -> is_a_match(x, guess, get_outcome(true_word, guess)), words)
+    guesses = hard_mode ? copy(allowed_guesses) : allowed_guesses
+
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
-        guesses = hard_mode ? remaining_words : allowed_guesses
-        guess = find_best_guess(;allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)[1]
+        hard_mode &&  filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), guesses)
+        guess = find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)[1]
         push!(sol, guess)
         filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), remaining_words)
     end 
