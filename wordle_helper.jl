@@ -1,8 +1,7 @@
-using Downloads 
-using ThreadsX
+using Downloads
 using ProgressMeter 
 using DelimitedFiles
-
+using FLoops
 
 function get_word_lists()
     # list of valid wordle words
@@ -44,7 +43,6 @@ function load_word_lists()
 end 
 
 
-
 # This function checks whether `word` is consistent with `outcome` and the associated
 # `guess`. 
 # The `outcome` is a vector of 5 integers, representing the match of each letter
@@ -58,20 +56,28 @@ is_a_match(word, guess, outcome; tmp = zeros(Int, 5)) = get_outcome(word, guess;
 # This deals with repeated letters. 
 function get_outcome(word, guess; tmp = zeros(Int, 5)) 
     tmp .= 0
-    for i in eachindex(word)
-        true_letter = word[i]
+    for (i, true_letter) in pairs(word)
         (true_letter == guess[i]) && (tmp[i] = 2; continue)
         for j in eachindex(tmp)
-            (tmp[j] == 0) && (true_letter == guess[j]) && (tmp[j] = 1; break)
+            if (tmp[j] == 0) && (true_letter == guess[j])
+                tmp[j] = 1
+                break
+            end
         end 
     end 
     return tmp
-end
-    
+end    
 
-count_wrong_matches(words, guess, outcome; tmp = zeros(Int, 5)) = count( 
+
+count_wrong_matches_given_outcome(words, guess, outcome; tmp = zeros(Int, 5)) = count( 
         x -> (is_a_match(x, guess, outcome; tmp) && (x != guess)), # wrong matches
         words)
+
+
+function count_wrong_matches(word, guess, words; tmp1 = zeros(Int, 5), tmp2 = zeros(Int, 5))
+    outcome = get_outcome(word, guess; tmp = tmp1)
+    return count_wrong_matches_given_outcome(words, guess, outcome; tmp = tmp2)
+end  
 
 
 # Finds the best guess by minimizing the expected number of wrong matched words. 
@@ -80,28 +86,23 @@ function find_best_guess(;
     allowed_guesses,
     verbose = true, 
     use_entropy = false
-)
-    verbose && (p = Progress(length(allowed_guesses)))
-    op = (x, y) -> y[2] < x[2] ? y : x
-    best = ThreadsX.mapreduce(op, 1:length(allowed_guesses), init = ("", typemax(Int))) do i  
-        guess = allowed_guesses[i]
-        score = 0
-        tmp = zeros(Int, 5)
-        outcome = zeros(Int, 5)
-        for (i, word) in enumerate(words) 
-            get_outcome(word, guess; tmp = outcome)
-            n = count_wrong_matches(words, guess, outcome; tmp) 
-            if use_entropy 
-                pr = (n + 1) / length(words)
-                score += log2(pr)
-            else 
-                score += n 
-            end            
+)    
+    p = Progress(length(allowed_guesses))
+    @floop for (i, guess) in pairs(allowed_guesses)
+        @init tmp1 = zeros(Int, 5)
+        @init tmp2 = zeros(Int, 5)
+        n = sum(word -> count_wrong_matches(word, guess, words; tmp1, tmp2), words)
+        score = use_entropy ? log2(n + 1) : Float64(n)   # type unstable -- deal later 
+        @reduce() do (best_index = firstindex(allowed_guesses); i), (best_score = typemax(score); score)
+            # find lowest score -- best guess
+            if score < best_score 
+                best_score = score
+                best_index = i
+            end 
         end 
         verbose && next!(p)
-        return (guess, score / length(words))
     end 
-    return best
+    return allowed_guesses[best_index::Int]
 end
 
 
@@ -128,14 +129,14 @@ function solve(
     guesses = hard_mode ? allowed_guesses[:] : allowed_guesses
 
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
-        hard_mode &&  filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), guesses)
-        guess = find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)[1]
+        outcome = get_outcome(true_word, guess)
+        hard_mode &&  filter!(x -> is_a_match(x, guess, outcome), guesses)
+        guess = find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)
         push!(sol, guess)
-        filter!(x -> is_a_match(x, guess, get_outcome(true_word, guess)), remaining_words)
+        filter!(x -> is_a_match(x, guess, outcome), remaining_words)
     end 
     return sol 
 end
-
 
 
 function solve_a_game(; hard_mode = false, use_entropy = false)
