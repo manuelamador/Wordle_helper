@@ -87,12 +87,14 @@ function find_best_guess(;
     verbose = true, 
     use_entropy = false
 )    
+    isempty(allowed_guesses) && error("empty guess list")
     p = Progress(length(allowed_guesses))
     @floop for (i, guess) in pairs(allowed_guesses)
         @init tmp1 = zeros(Int, 5)
         @init tmp2 = zeros(Int, 5)
-        n = sum(word -> count_wrong_matches(word, guess, words; tmp1, tmp2), words)
-        score = use_entropy ? log2(n + 1) : Float64(n)   # type unstable -- deal later 
+        score = use_entropy ?
+            sum(word -> log2(1 + count_wrong_matches(word, guess, words; tmp1, tmp2)), words) :
+            Float64(sum(word -> count_wrong_matches(word, guess, words; tmp1, tmp2), words))
         @reduce() do (best_index = firstindex(allowed_guesses); i), (best_score = typemax(score); score)
             # find lowest score -- best guess
             if score < best_score 
@@ -125,14 +127,16 @@ function solve(
     (true_word in allowed_guesses) || (println("$true_word not in the list of guesses!"); return String[])
     guess = starting_guess
     sol = [guess]
-    remaining_words = filter(x -> is_a_match(x, guess, get_outcome(true_word, guess)), words)
+
+    outcome = get_outcome(true_word, guess)
+    remaining_words = filter(x -> is_a_match(x, guess, outcome), words)
     guesses = hard_mode ? allowed_guesses[:] : allowed_guesses
 
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
-        outcome = get_outcome(true_word, guess)
         hard_mode &&  filter!(x -> is_a_match(x, guess, outcome), guesses)
         guess = find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)
         push!(sol, guess)
+        outcome = get_outcome(true_word, guess)
         filter!(x -> is_a_match(x, guess, outcome), remaining_words)
     end 
     return sol 
