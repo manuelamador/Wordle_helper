@@ -43,40 +43,44 @@ function load_word_lists()
 end 
 
 
+make_tmp() = (; outcome = zeros(Int, 5), matched = fill(false, 5))
+
+
 # This function checks whether `word` is consistent with `outcome` and the associated
 # `guess`. 
 # The `outcome` is a vector of 5 integers, representing the match of each letter
 # in `guess`. A value of 0 means wrong letter, 1 means right letter wrong position, and 2 means 
 # right letter right position. 
-
-is_a_match(word, guess, outcome; tmp = zeros(Int, 5)) = get_outcome(word, guess; tmp) == outcome
+is_a_match(word, guess, outcome; tmp! = make_tmp()) = get_outcome(word, guess; tmp!) == outcome
 
 
 # If the correct word is `word`, returns the vector `outcome` for each letter in `guess`. 
 # This deals with repeated letters. 
-function get_outcome(word, guess; tmp = zeros(Int, 5)) 
-    tmp .= 0
-    for (i, true_letter) in pairs(word)
-        (true_letter == guess[i]) && (tmp[i] = 2; continue)
-        for j in eachindex(tmp)
-            if (tmp[j] == 0) && (true_letter == guess[j])
-                tmp[j] = 1
+function get_outcome(word, guess; tmp! = make_tmp()) 
+    outcome, matched = tmp!
+    for i in eachindex(word)
+        outcome[i], matched[i] = (word[i] == guess[i]) ? (2, true) : (0, false)
+    end 
+    for i in eachindex(guess)
+        for j in eachindex(word)
+            if !matched[j] && outcome[i] == 0 && guess[i] == word[j] 
+                outcome[i], matched[j] = 1, true
                 break
-            end
+            end 
         end 
     end 
-    return tmp
+    return outcome
 end    
 
 
-count_wrong_matches_given_outcome(words, guess, outcome; tmp = zeros(Int, 5)) = count( 
-        x -> (is_a_match(x, guess, outcome; tmp) && (x != guess)), # wrong matches
+count_wrong_matches_given_outcome(words, guess, outcome; tmp! = make_tmp()) = count( 
+        x -> (is_a_match(x, guess, outcome; tmp!) && (x != guess)), # wrong matches
         words)
 
 
-function count_wrong_matches(word, guess, words; tmp1 = zeros(Int, 5), tmp2 = zeros(Int, 5))
-    outcome = get_outcome(word, guess; tmp = tmp1)
-    return count_wrong_matches_given_outcome(words, guess, outcome; tmp = tmp2)
+function count_wrong_matches(word, guess, words; tmp1! = make_tmp(), tmp2! = make_tmp())
+    outcome = get_outcome(word, guess; tmp! = tmp1!)
+    return count_wrong_matches_given_outcome(words, guess, outcome; tmp! = tmp2!)
 end  
 
 
@@ -90,11 +94,11 @@ function find_best_guess(;
     isempty(allowed_guesses) && error("empty guess list")
     p = Progress(length(allowed_guesses))
     @floop for (i, guess) in pairs(allowed_guesses)
-        @init tmp1 = zeros(Int, 5)
-        @init tmp2 = zeros(Int, 5)
+        @init tmp1! = make_tmp()
+        @init tmp2! = make_tmp()
         score = use_entropy ?
-            sum(word -> log2(1 + count_wrong_matches(word, guess, words; tmp1, tmp2)), words) :
-            Float64(sum(word -> count_wrong_matches(word, guess, words; tmp1, tmp2), words))
+            sum(word -> log2(1 + count_wrong_matches(word, guess, words; tmp1!, tmp2!)), words) :
+            Float64(sum(word -> count_wrong_matches(word, guess, words; tmp1!, tmp2!), words))
         @reduce() do (best_index = firstindex(allowed_guesses); i), (best_score = typemax(score); score)
             # find lowest score -- best guess
             if score < best_score 
@@ -109,8 +113,9 @@ end
 
 
 function new_guess_and_update!(remaining_words, guess, outcome, allowed_guesses; hard_mode = false, use_entropy = false)
-    filter!(x -> is_a_match(x, guess, outcome), remaining_words)
-    hard_mode && filter!(x -> is_a_match(x, guess, outcome), allowed_guesses)
+    tmp! = make_tmp()
+    filter!(x -> is_a_match(x, guess, outcome; tmp!), remaining_words)
+    hard_mode && filter!(x -> is_a_match(x, guess, outcome; tmp!), allowed_guesses)
     return find_best_guess(; words = remaining_words, allowed_guesses, verbose = false, use_entropy)
 end 
 
@@ -132,12 +137,14 @@ function solve(
     remaining_words = filter(x -> is_a_match(x, guess, outcome), words)
     guesses = hard_mode ? allowed_guesses[:] : allowed_guesses
 
+    tmp! = make_tmp()
+
     while !(length(remaining_words) == 1 && remaining_words[1] == guess) 
-        hard_mode &&  filter!(x -> is_a_match(x, guess, outcome), guesses)
+        hard_mode &&  filter!(x -> is_a_match(x, guess, outcome; tmp!), guesses)
         guess = find_best_guess(; allowed_guesses = guesses, words = remaining_words, verbose = false, use_entropy)
         push!(sol, guess)
         outcome = get_outcome(true_word, guess)
-        filter!(x -> is_a_match(x, guess, outcome), remaining_words)
+        filter!(x -> is_a_match(x, guess, outcome; tmp!), remaining_words)
     end 
     return sol 
 end
