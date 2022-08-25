@@ -91,7 +91,8 @@ function find_best_guess(;
     verbose = true, 
     use_entropy = false
 )    
-    isempty(allowed_guesses) && error("empty guess list")
+    isempty(allowed_guesses) && error("Empty guess list. Something went wrong. Stopping.")
+    isempty(words) && error("Empty word list. Something went wrong. Stopping.")
     p = Progress(length(allowed_guesses))
     @floop for (i, guess) in pairs(allowed_guesses)
         @init tmp1! = make_tmp()
@@ -206,7 +207,7 @@ function solve_a_game(; hard_mode = false, use_entropy = false)
             (guess != words[1]) && (i += 1)
             println("\nWord is $(words[1]). Required $i guess$ending.")
             break 
-        elseif length(words) == 0 
+        elseif isempty(words) 
             println("Inconsistent values. Something went wrong.")
             break
         end
